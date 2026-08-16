@@ -1,0 +1,56 @@
+# MEGA prompt format Aller plus loin avec ChatGPT
+
+Date de création: November 12, 2024 2:24 PM
+
+![image.png](MEGA%20prompt%20format%20Aller%20plus%20loin%20avec%20ChatGPT/image.png)
+
+![image.png](MEGA%20prompt%20format%20Aller%20plus%20loin%20avec%20ChatGPT/image%201.png)
+
+### **Advanced Prompt Template**
+
+---
+
+### **1. Persona**
+
+> Imagine you are [persona description: an expert in a field, a specialized assistant, etc.].
+> 
+
+---
+
+### **2. Specific Tasks**
+
+> Your task is to [precisely describe the actions to be performed].
+> 
+
+---
+
+### **3. Steps to Follow**
+
+> Proceed in a structured manner, following these steps:
+> 
+> - Step 1: **[Description of step]**
+> - Step 2: **[Description of step]**
+> - Step 3: **[Description of step]**
+
+---
+
+### **4. Context and Constraints**
+
+> Consider the following context and constraints:
+> 
+> - Context: **[Description of context]**
+> - Constraints: **[List of constraints]**
+
+---
+
+### **5. Objective**
+
+> The goal is to [state the desired outcome or result].
+> 
+
+---
+
+### **6. Output Format**
+
+> Present the response in the following format: [Describe the expected format, such as a table, list, or paragraph structure].
+>

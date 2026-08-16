@@ -1,0 +1,11 @@
+# déployer une plateforme de vente modulaire et haut de gamme, visuellement proche d'un configurateur (type Tesla ou options aériennes), permettant aux clients de composer leur "panier" de services et d'assets via une interface grille "bento" impeccable, le tout sans toucher une ligne de code mais en exploitant ton expertise en design pour éviter le rendu générique des templates IA.
+
+Date de création: November 24, 2025 2:05 PM
+
+déployer une plateforme de vente modulaire et haut de gamme, visuellement proche d'un configurateur (type Tesla ou options aériennes), permettant aux clients de composer leur "panier" de services et d'assets via une interface grille "bento" impeccable, le tout sans toucher une ligne de code mais en exploitant ton expertise en design pour éviter le rendu générique des templates IA.
+
+La stack idéale pour un designer sans compétences de codage (« Webdev ») mais exigeant sur l'UI est le trio **Figma + Framer + Lemon Squeezy**.
+
+1. **Design (Figma) :** Maquette ton interface "Bento Grid" avec ta police **GT America**, en prévoyant les états (survol, sélection) comme pour une UI de jeu vidéo.
+2. **Builder (Framer) :** C'est l'outil ultime pour les designers. Il importe tes maquettes Figma et te permet de créer des interactions complexes (les "cases" qui s'activent) visuellement, en générant un code React ultra-rapide et SEO-friendly digne d'Apple.
+3. **Vente (Lemon Squeezy) :** Pour la partie "Upsell/Assurance", n'essaie pas de coder un panier : utilise Lemon Squeezy. Tu y configures tes produits et tes options (ex: "Ajouter la licence commerciale +50€"), et l'outil te donne un lien "Overlay". Tu connectes ce lien à tes boutons dans Framer, et tu obtiens un site visuellement sur-mesure avec une infrastructure de paiement bancaire robuste et mondiale.

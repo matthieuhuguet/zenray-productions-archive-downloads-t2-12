@@ -1,0 +1,38 @@
+# Matthieu, je tranche et je simplifie au maximum. Tu gardes ta machine 100 % stock. Aucun overclock sur le 5950X ni sur la 3090. Les micro-stutters viennent d’abord de la cohérence des frametimes et des moteurs (compilation de shaders, pacing), pas d’un déficit moyen de FPS. Un OC peut même amplifier l’irrégularité. PC Gamer+1
+
+Date de création: October 4, 2025 5:56 PM
+
+Voici la **solution finale optimale** si tu ne touches qu’à Nvidia + RTSS.
+
+### 1) Panneau Nvidia: règles fixes (global puis ajuste par jeu si besoin)
+
+- **G-Sync activé** sur l’écran où tu joues.
+- **V-Sync = On** dans le pilote. C’est le “filet de sécurité” lorsqu’un pic FPS dépasse la plage VRR; combiné à un cap, tu évites tearing et à-coups au plafond. [Blur Busters Forums](https://forums.blurbusters.com/viewtopic.php?t=6537&utm_source=chatgpt.com)
+- **Power management mode = Prefer maximum performance** pour empêcher les baisses d’horloge qui créent des oscillations de frametime. [NVIDIA+1](https://www.nvidia.com/en-us/geforce/forums/game-ready-drivers/13/196590/what-does-prefer-maximum-performance-actually-do/?utm_source=chatgpt.com)
+- **Low Latency Mode = Off** en global. Si un jeu **n’a pas** Reflex et que tu es **GPU-bound**, tu pourras tester On/Ultra **au cas par cas**, sinon laisse Off. Quand **Reflex** existe, il remplace Ultra Low Latency. [NVIDIA+1](https://www.nvidia.com/en-us/geforce/guides/gfecnt/202010/system-latency-optimization-guide/?utm_source=chatgpt.com)
+
+### 2) En jeu: trois consignes
+
+- **V-Sync = Off** dans le jeu. Tu évites la V-Sync interne souvent moins propre que la combinaison G-Sync + V-Sync pilote. [Blur Busters Forums](https://forums.blurbusters.com/viewtopic.php?t=6537&utm_source=chatgpt.com)
+- **NVIDIA Reflex = On** (ou **On+Boost** si tu privilégies la latence). Ne cumule pas Reflex et le LLM du pilote. [NVIDIA+1](https://www.nvidia.com/en-us/geforce/guides/gfecnt/202010/system-latency-optimization-guide/?utm_source=chatgpt.com)
+- **Désactive les limiteurs d’images internes**; on utilisera RTSS, plus stable pour le pacing. [YouTube](https://www.youtube.com/watch?v=0aQ_AuOqSYo&utm_source=chatgpt.com)
+
+### 3) RTSS: le cap qui lisse vraiment
+
+- Laisse ton écran à **240 Hz**.
+- Si tu peux tenir très haut sans cogner le plafond VRR: **cap = 237 FPS**.
+- Si ta réalité c’est ~200 FPS stables: **cap = 197–200 FPS**.
+- Si ça oscille vers 120–150: **cap ≈ 117 FPS**.
+    
+    Logique: rester **quelques FPS sous** le plafond ou choisir un **cap que tu tiens 99 % du temps** pour lisser la file de rendu. C’est la recette Blur Busters pour VRR + cap externe. [Blur Busters Forums](https://forums.blurbusters.com/viewtopic.php?t=6537&utm_source=chatgpt.com)
+    
+
+### 4) Mesure et validation (2 minutes)
+
+- Lance une scène répétable et vérifie avec **CapFrameX** que la **courbe de frametime** est plate et que les **1 % / 0,1 % lows** remontent après réglage. Si tu vois encore des pics ponctuels dans un titre précis, c’est souvent de la **compilation de shaders** côté jeu, pas un problème matériel. [CapFrameX+2CapFrameX+2](https://www.capframex.com/?utm_source=chatgpt.com)
+
+### Décision ferme sur l’OC
+
+- **Pas d’overclock CPU/GPU** pour traiter le micro-stutter. L’OC augmente la moyenne mais ne corrige pas la variance de frametime ni les à-coups de moteurs/driver; ton combo **VRR + V-Sync pilote ON + cap RTSS** cible justement la cause. [PC Gamer](https://www.pcgamer.com/what-is-microstutter-and-how-do-i-fix-it/?utm_source=chatgpt.com)
+
+Si tu veux, donne-moi un jeu et tes 1 % lows typiques: je te rends un cap précis “sur-mesure” (ex: 141, 165, 197 ou 237) et on verrouille la combinaison Reflex/LLM adaptée à ce titre.
