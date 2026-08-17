@@ -1,0 +1,43 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="_canvas.css">
+<style>
+  /*
+    Position et taille mesurées sur la référence design.png (2696x1476), pas
+    devinées : boîte englobante de chaque bloc de texte blanc trouvée par scan
+    de pixels, convertie en fraction du canevas, puis réappliquée à notre
+    canevas 1080x1350.
+
+    Ratios mesurés sur la référence CUBA :
+      hauteur titre / hauteur sous-titre = 4,43
+      hauteur titre / hauteur élévation  = 5,47
+      centre Y élévation = 37,53% ; titre = 50,95% ; sous-titre = 64,60%
+  */
+
+  .photo {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    object-position: center 42%;
+  }
+  .veil {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 48%, rgba(0,0,0,.42) 0%, rgba(0,0,0,.10) 55%, rgba(0,0,0,0) 75%),
+      linear-gradient(180deg, rgba(0,0,0,.22) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,.30) 100%);
+  }
+
+  .asset { position: absolute; display: block; }
+  .elev  { width: 417px; left: 331.5px; top: 457px; }
+  .title { width: 902px; left: 89px;   top: 514px; }
+  .sub   { width: 670px; left: 205px;  top: 809px; }
+</style></head>
+<body>
+  <div class="canvas">
+    <img class="photo" src="4-photo-crater.jpg">
+    <div class="veil"></div>
+    <img class="asset elev"  src="1-elevation.png">
+    <img class="asset title" src="2-title-place.png">
+    <img class="asset sub"   src="3-subtitle.png">
+  </div>
+</body></html>

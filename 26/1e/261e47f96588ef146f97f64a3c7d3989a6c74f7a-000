@@ -1,0 +1,5 @@
+/* Canevas 4:5 Instagram. Hauteur FIXE, voir skill zenray-html-photoshop. */
+:root { --canvas-w: 1080px; --canvas-h: 1350px; }
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width: var(--canvas-w); height: var(--canvas-h); overflow: hidden; background:#000; }
+.canvas { position: relative; width: var(--canvas-w); height: var(--canvas-h); overflow: hidden; }

@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- HDA logo : mot-symbole plus pastille plus sous-titre. Tout est parametre. -->
+<html><head><meta charset="utf-8">
+<style>
+  @font-face { font-family:'Display'; src:url('{{fontDisplay}}'); }
+  @font-face { font-family:'Body';    src:url('{{fontBody}}');    }
+  html, body { margin:0; padding:0; background:transparent; }
+  .logo {
+    width:{{boxW}}px; height:{{boxH}}px;
+    display:flex; flex-direction:column; align-items:flex-end; justify-content:center;
+    gap:{{subGap}}px;
+  }
+  .word {
+    font-family:'Display'; font-size:{{wordSize}}px; line-height:1;
+    color:{{color}}; letter-spacing:-0.035em;
+  }
+  .sub { display:flex; align-items:center; gap:{{dotGap}}px; }
+  .dot {
+    width:{{dotSize}}px; height:{{dotSize}}px; border-radius:50%;
+    background:{{dotColor}};
+  }
+  .subtext {
+    font-family:'Body'; font-size:{{subSize}}px; line-height:1;
+    color:{{color}}; letter-spacing:0.01em;
+  }
+</style></head>
+<body>
+  <div class="logo">
+    <div class="word">{{word}}</div>
+    <div class="sub"><span class="dot"></span><span class="subtext">{{sub}}</span></div>
+  </div>
+</body></html>

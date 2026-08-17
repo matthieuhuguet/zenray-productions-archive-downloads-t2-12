@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- Composition generee par build.py. Ne pas editer a la main : editer _params.json. -->
+<html><head><meta charset="utf-8"><style>
+  html, body { margin:0; padding:0; background:#111; }
+  .canvas { position:relative; width:1080px; height:1350px; overflow:hidden;
+             background:#0B0A09; }
+  .canvas img { position:absolute; display:block; }
+  .canvas .slot { object-fit:cover; }
+  .guide { position:absolute; border:2px dashed rgba(255,255,255,.30);
+            color:rgba(255,255,255,.45); font:14px ui-monospace, monospace;
+            display:flex; align-items:flex-end; padding:8px; box-sizing:border-box; }
+</style></head>
+<body><div class="canvas">
+    <div class="guide" style="left:0px;top:0px;width:1080px;height:1350px;z-index:0">slot vide : backdrop-photo</div>
+    <div class="guide" style="left:0px;top:830px;width:1080px;height:520px;z-index:40">slot vide : foreground-photo</div>
+    <img style="left:872.3px;top:34px;width:117.7px;z-index:20" src="assets/02-logo.png">
+    <img style="left:90.0px;top:196px;width:714.3px;z-index:20" src="assets/03-title-l1.png">
+    <img style="left:90.0px;top:262px;width:740.3px;z-index:20" src="assets/04-title-l2.png">
+    <img style="left:90.0px;top:337px;width:668.0px;z-index:20" src="assets/05-subtitle.png">
+    <img style="left:90.0px;top:1246px;width:204.3px;z-index:20" src="assets/07-source.png">
+    <img style="left:431.0px;top:383px;width:44.7px;z-index:20" src="assets/06-score-head.png">
+    <img style="left:901.0px;top:383px;width:44.7px;z-index:20" src="assets/06-score-head.png">
+    <img style="left:90px;top:408px;width:430px;z-index:30" src="assets/10-row-01-south-korea.png">
+    <img style="left:90px;top:457px;width:430px;z-index:30" src="assets/11-row-02-japan.png">
+    <img style="left:90px;top:506px;width:430px;z-index:30" src="assets/12-row-03-vietnam.png">
+    <img style="left:90px;top:555px;width:430px;z-index:30" src="assets/13-row-04-philippines.png">
+    <img style="left:90px;top:604px;width:430px;z-index:30" src="assets/14-row-05-iran.png">
+    <img style="left:90px;top:653px;width:430px;z-index:30" src="assets/15-row-06-malaysia.png">
+    <img style="left:90px;top:702px;width:430px;z-index:30" src="assets/16-row-07-india.png">
+    <img style="left:90px;top:751px;width:430px;z-index:30" src="assets/17-row-08-china.png">
+    <img style="left:90px;top:800px;width:430px;z-index:30" src="assets/18-row-09-singapore.png">
+    <img style="left:90px;top:849px;width:430px;z-index:30" src="assets/19-row-10-thailand.png">
+    <img style="left:560px;top:408px;width:430px;z-index:30" src="assets/20-row-11-indonesia.png">
+    <img style="left:560px;top:457px;width:430px;z-index:30" src="assets/21-row-12-hong-kong.png">
+    <img style="left:560px;top:506px;width:430px;z-index:30" src="assets/22-row-13-macau.png">
+    <img style="left:560px;top:555px;width:430px;z-index:30" src="assets/23-row-14-bhutan.png">
+    <img style="left:560px;top:604px;width:430px;z-index:30" src="assets/24-row-15-taiwan.png">
+    <img style="left:560px;top:653px;width:430px;z-index:30" src="assets/25-row-16-kazakhstan.png">
+    <img style="left:560px;top:702px;width:430px;z-index:30" src="assets/26-row-17-sri-lanka.png">
+    <img style="left:560px;top:751px;width:430px;z-index:30" src="assets/27-row-18-pakistan.png">
+    <img style="left:560px;top:800px;width:430px;z-index:30" src="assets/28-row-19-myanmar.png">
+    <img style="left:560px;top:849px;width:430px;z-index:30" src="assets/29-row-20-laos.png">
+</div></body></html>
