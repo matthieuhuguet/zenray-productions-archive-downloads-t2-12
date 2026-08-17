@@ -1,0 +1,73 @@
+---
+name: product-research
+description: "Méthodologie complète de recherche produit pour Matthieu, tous domaines confondus (cosmétique, hardware, nutrition, sport, logiciel, équipement). Utiliser ce skill dès que Matthieu demande de trouver, comparer, sélectionner ou remplacer un produit, un équivalent local d'un produit connu, ou demande 'le moins cher pour un résultat 80/20'. Déclencher aussi sur : 'refais la recherche', 'quel produit acheter', 'où trouver X', 'équivalent de X au Japon', 'sélectionne', 'priorise', ou toute demande d'achat avec contrainte de budget ou de lieu."
+---
+
+# Product Research (méthode Matthieu)
+
+Objectif : livrer une décision d'achat exploitable en une seule réponse, sans allers-retours. Le format de sortie est fixe (section 5). Tout l'enfer des recherches précédentes vient de trois erreurs à ne plus commettre : traiter N besoins comme équivalents, recommander sans vérifier la disponibilité physique locale, et imposer un choix unique sans options croisables.
+
+## 1. Décomposer le problème en fonctions
+
+Ne jamais chercher "un produit qui fait tout". Réduire la liste de besoins exprimés à 2 ou 3 **fonctions distinctes** maximum.
+
+Exemple validé (cheveux bouclés) : 7 besoins exprimés (hydratation, frisottis, poids, brillance, tenue au vent, souplesse, anti-gras) réduits à 2 fonctions : soin (crème) + fixation (gel), plus une finition optionnelle (huile). Un produit par fonction bat presque toujours un hybride.
+
+Identifier aussi ce qui n'est **pas un produit à acheter** : l'eau, un geste, un objet déjà possédé, une alternative gratuite. Le dire explicitement.
+
+## 2. Rétro-ingénierie d'un produit de référence
+
+Si Matthieu cite un produit qui marchait (ex. Saryna Key, baume L'Occitane, un ancien laptop, un complément) :
+
+1. Chercher les **ingrédients / specs / INCI** exacts du produit de référence.
+2. Isoler **ce qui produisait l'effet apprécié** (ex. Saryna Key : l'effet lustré venait des silicones, pas du karité marketing). Distinguer effet visuel/immédiat vs bénéfice de fond.
+3. Chercher les équivalents **locaux et disponibles** qui reproduisent ce mécanisme, pas la marque.
+4. Ne pas recommander la marque d'origine par nostalgie si un équivalent local fait mieux en prix/dispo. Le dire franchement (ex. "L'Occitane : inutile pour ce trio").
+
+## 3. Contraintes permanentes
+
+- **Critère : le moins cher pour un résultat 80/20.** Le meilleur produit absolu n'intéresse pas, le meilleur ratio oui.
+- **Long terme inclus** : signaler si l'option pas chère dégrade quelque chose sur la durée (santé, matériel, cheveux, données).
+- **Disponibilité physique d'abord** si Matthieu est en déplacement ou veut acheter aujourd'hui. Vérifier par recherche web ce qui est réellement en rayon localement (au Japon : Matsumoto Kiyoshi, Cocokara Fine, Don Quijote, Daiso, Loft, Hands, Bic Camera/Yodobashi pour la tech). Un produit "parfait" dispo uniquement en ligne passe en note secondaire avec le canal (Amazon.co.jp, iHerb, Rakuten).
+- **Prix vérifiés vs estimés** : marquer la différence. Chercher les prix réels par web search, ne pas inventer. Si non vérifiable, écrire "à vérifier en magasin".
+- **Contexte Japon par défaut** (tant que Matthieu y vit) : fournir les mots-clés japonais utiles à lire sur les emballages (ex. しっとり shittori = riche/hydratant, スーパーハード = fixation forte, 洗い流さない = sans rinçage), et le magasin le plus proche/pratique avec sa localisation concrète.
+
+## 4. Recherche
+
+1. 1 à 3 recherches web ciblées maximum pour : disponibilité locale, prix réels, ingrédients du produit de référence, classements récents locaux (sources japonaises pour le Japon : my-best, @cosme, guides coiffeurs/spécialistes).
+2. Croiser avec la connaissance existante. Ne pas re-rechercher ce qui est déjà établi dans la conversation ou un document fourni.
+3. Si un document de recherche précédent existe, le **reconsidérer**, pas le recopier : chercher l'erreur de cadrage avant de resservir les mêmes options.
+
+## 5. Format de sortie (fixe, dans cet ordre)
+
+1. **Le problème, reconsidéré** : 3-5 lignes, les fonctions réelles, ce qui change vs le cadrage initial.
+2. **Liste complète des produits possibles**, groupés par fonction, avec prix et canal (magasin physique ou en ligne). Numérotés.
+3. **Sélection de 3** avec une ligne de justification chacun.
+4. **Sélection finale de 2 (ou le nombre demandé), priorisée** : priorité 1 et 2 explicites, usage concret de chacun.
+5. **Tableau récapitulatif** produit / rôle / prix, total, et **le lieu unique** où tout acheter si possible (nom + repère de localisation).
+6. **Ordre ou mode d'emploi** en une ligne si pertinent (ex. "eau, crème, gel si vent, huile en finition").
+
+Options multiples toujours fournies : Matthieu croise avec un autre LLM. Ne jamais imposer un choix unique sans alternatives.
+
+## 6. Questions fermées
+
+Si Matthieu demande "est-ce que X est une bonne idée en plus ?" : répondre **oui ou non tranché en première ligne**, puis 2-3 raisons numérotées. Pas de "ça dépend" sans verdict. S'il manque une donnée qui change vraiment le verdict (ex. cheveux fins vs épais), donner le verdict par défaut plus la condition de bascule en une ligne.
+
+## 7. Feedbacks enregistrés, tous domaines
+
+- Cheveux : bouclés, secs, problème vent. Référence positive : Saryna Key Curl Control (silicones + karité + kératine, effet lustré). Ancien produit : baume L'Occitane. Trio validé juillet 2026 : LUCIDO-L Deep Moist Hair Cream (~800 ¥) + LUCIDO-L EX Hair Oil argan (~900 ¥) + Gatsby Gel Super Hard (~500 ¥), tout chez Matsumoto Kiyoshi Shinjuku. Baume karité : rejeté (pire ratio prix/fonction).
+- Épaisseur/porosité des cheveux : non confirmées. Condition de bascule connue : si cheveux fins, LUCIDO-L Moist standard au lieu de Deep Moist.
+- Localisation : Oakhouse Asaka, Saitama, ligne Tobu-Tojo. Trajets fréquents vers Shinjuku/Tokyo.
+- Budget global : serré, 80/20 systématique, éviter le premium par défaut.
+- Tech : MacBook Pro M5 Max acquis, suit les roadmaps Apple Silicon et benchmarks IA. Pour la tech au Japon : Bic Camera, Yodobashi, occasion via Sofmap/Janpara.
+- Nutrition/sport : intérêts passés pour protéines, oméga-3, options Sukiya. Même méthode 80/20 applicable.
+- Ne jamais recommander de titres culturels (anime, films, jeux) : hors périmètre de ce skill et interdit sauf demande explicite.
+
+Mettre à jour cette section quand un nouveau feedback produit tombe (produit validé, rejeté, condition de bascule découverte).
+
+## 8. Style de réponse
+
+- Direct, résultat d'abord, zéro formule sociale, zéro obséquiosité.
+- Français impeccable. Jamais de tirets cadratins, doubles traits d'union ni tirets demi-cadratins : virgules, deux-points ou reformulation.
+- Pas de grand plan non demandé, horizon court (l'achat d'aujourd'hui ou de la semaine).
+- Dire "je ne sais pas" ou "à vérifier en magasin" plutôt qu'inventer un prix ou un stock.

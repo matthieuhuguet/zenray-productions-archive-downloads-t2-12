@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""
+Le cook : instancie chaque asset depuis _params.json, aucune valeur en dur ici.
+Un gabarit HTML minimal par famille (title, textbox, tag), rendu en Chromium
+headless à un facteur d'échelle fixe pour rester net, puis composition finale
+en slide-1.html -> render.sh pour l'export out/.
+"""
+import json, subprocess, sys, os, re
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+P = json.load(open(os.path.join(ROOT, "_params.json")))
+SCALE = 2
+
+CHROME_CANDIDATES = [
+    "/Users/zenray/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+]
+CHROME = next((c for c in CHROME_CANDIDATES if os.path.exists(c)), None)
+if not CHROME:
+    import glob
+    hits = glob.glob(os.path.expanduser("~/Library/Caches/ms-playwright/chromium-*/chrome-mac-arm64/*.app/Contents/MacOS/*"))
+    CHROME = hits[0] if hits else None
+if not CHROME:
+    sys.exit("Aucun Chromium headless trouve. npx playwright install chromium")
+
+TOK = P["tokens"]
+
+def color(name):
+    return TOK["colors"][name]
+
+def render(html_path, png_path, w, h):
+    subprocess.run([
+        CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+        f"--force-device-scale-factor={SCALE}",
+        "--default-background-color=00000000",
+        f"--window-size={w},{h}", f"--screenshot={png_path}",
+        f"file://{html_path}",
+    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def runs_html(runs, emph_color, normal_color):
+    out = []
+    for r in runs:
+        emph = r["emph"]
+        if emph == "mixed":
+            cls = "run emph"
+        elif emph:
+            cls = "run emph"
+        else:
+            cls = "run"
+        out.append(f'<span class="{cls}">{r["text"]}</span>')
+    return " ".join(out)
+
+def write_box_asset(name, box, bg_color_name, body_html, extra_css="", radius=18):
+    w, h = box["w"] * SCALE // SCALE, box["h"]  # keep logical units, scale applied by chrome flag
+    html = f"""<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  @font-face {{ font-family:'{TOK["fontFamily"]}'; src:url('file://{TOK["fontFile"]}') format('truetype'); font-weight:900; }}
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  html, body {{ background: transparent; }}
+  .box {{
+    width:{box["w"]}px; height:{box["h"]}px;
+    background:{color(bg_color_name)};
+    border-radius:{radius}px;
+    display:flex; align-items:center; justify-content:center;
+    padding: 0 34px;
+  }}
+  .run {{ font-family:'{TOK["fontFamily"]}', sans-serif; font-weight:900; color:{color("black")}; font-size:34px; }}
+  .run.emph {{ color:{color("white")}; font-size:40px; }}
+  {extra_css}
+</style></head>
+<body><div class="box">{body_html}</div></body></html>
+"""
+    html_path = os.path.join(ROOT, f"{name}.html")
+    png_path = os.path.join(ROOT, f"{name}.png")
+    open(html_path, "w").write(html)
+    render(f"{ROOT}/{name}.html", png_path, box["w"], box["h"])
+    return png_path
+
+def build_title():
+    t = P["title"]
+    body = f'<span class="run emph" style="font-size:64px; letter-spacing:0.01em;">{t["text"]}</span>'
+    write_box_asset("1-title", t["box"], t["bg"], body, radius=0)
+
+def build_subtitle():
+    s = P["subtitle"]
+    body = f'<div class="wrap">{runs_html(s["runs"], "white", "black")}</div>'
+    extra = ".wrap{display:flex;flex-wrap:wrap;gap:0 12px;justify-content:center;text-align:center;line-height:1.15;}"
+    write_box_asset("2-subtitle", s["box"], s["bg"], body, extra_css=extra, radius=0)
+
+def build_arrow():
+    a = P["arrow"]
+    box = a["box"]
+    html = f"""<!doctype html>
+<html><head><meta charset="utf-8">
+<style>* {{margin:0;padding:0;}} html,body{{background:transparent;}}</style></head>
+<body>
+<svg width="{box['w']}" height="{box['h']}" viewBox="0 0 {box['w']} {box['h']}" style="transform:rotate({a['rotationDeg']}deg)">
+  <path d="M 10 {box['h']//2} L {box['w']-40} {box['h']//2} M {box['w']-70} {box['h']//2-30} L {box['w']-10} {box['h']//2} L {box['w']-70} {box['h']//2+30}"
+        stroke="{color(a['color'])}" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+</body></html>"""
+    html_path = os.path.join(ROOT, "3-arrow.html")
+    open(html_path, "w").write(html)
+    render(html_path, os.path.join(ROOT, "3-arrow.png"), box["w"], box["h"])
+
+def build_criteria():
+    for i, c in enumerate(P["criteria"], start=1):
+        body = f'<div class="wrap">{runs_html(c["runs"], "white", "black")}</div>'
+        extra = ".wrap{display:flex;flex-wrap:wrap;gap:0 12px;justify-content:center;text-align:center;line-height:1.1;}"
+        write_box_asset(f"{4+i}-critere-{i}", c["box"], c["bg"], body, extra_css=extra, radius=14)
+
+def build_tag():
+    t = P["tag"]
+    lines = t["text"].split("\n")
+    body = "".join(f'<div class="run" style="color:{color(t["textColor"])};font-size:{t["fontSize"]}px;line-height:1.3;">{l}</div>' for l in lines)
+    write_box_asset("10-tag", t["box"], t["bg"], f'<div class="wrap">{body}</div>',
+                     extra_css=".wrap{text-align:center;}", radius=10)
+
+def build_photo_placeholder():
+    ph = P["photo"]
+    if ph["src"]:
+        return
+    box = ph["box"]
+    html = f"""<!doctype html><html><head><style>*{{margin:0;padding:0;}}html,body{{background:transparent;}}
+    .slot{{width:{box['w']}px;height:{box['h']}px;background:transparent;border:3px dashed rgba(0,0,0,0.15);
+           display:flex;align-items:center;justify-content:center;font-family:sans-serif;color:rgba(0,0,0,0.25);font-size:22px;text-align:center;}}
+    </style></head><body><div class="slot">asset photo absent<br>slot declare</div></body></html>"""
+    html_path = os.path.join(ROOT, "9-photo-slot.html")
+    open(html_path, "w").write(html)
+    render(html_path, os.path.join(ROOT, "9-photo-slot.png"), box["w"], box["h"])
+
+def build_composite():
+    canvas = P["canvas"]
+    def pos(box):
+        return f'position:absolute; left:{box["x"]}px; top:{box["y"]}px; width:{box["w"]}px; height:{box["h"]}px;'
+    imgs = []
+    imgs.append(f'<img src="1-title.png" style="{pos(P["title"]["box"])}">')
+    imgs.append(f'<img src="2-subtitle.png" style="{pos(P["subtitle"]["box"])}">')
+    imgs.append(f'<img src="3-arrow.png" style="{pos(P["arrow"]["box"])}">')
+    for i, c in enumerate(P["criteria"], start=1):
+        imgs.append(f'<img src="{4+i}-critere-{i}.png" style="{pos(c["box"])}">')
+    imgs.append(f'<img src="9-photo-slot.png" style="{pos(P["photo"]["box"])}">')
+    imgs.append(f'<img src="10-tag.png" style="{pos(P["tag"]["box"])}">')
+    html = f"""<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  .canvas {{ position:relative; width:{canvas['width']}px; height:{canvas['height']}px; background:{color(canvas['bg'])}; overflow:hidden; }}
+  .canvas img {{ display:block; }}
+</style></head>
+<body><div class="canvas">{''.join(imgs)}</div></body></html>
+"""
+    open(os.path.join(ROOT, "slide-1.html"), "w").write(html)
+
+if __name__ == "__main__":
+    build_title()
+    build_subtitle()
+    build_arrow()
+    build_criteria()
+    build_photo_placeholder()
+    build_tag()
+    build_composite()
+    print("assets + slide-1.html ecrits")

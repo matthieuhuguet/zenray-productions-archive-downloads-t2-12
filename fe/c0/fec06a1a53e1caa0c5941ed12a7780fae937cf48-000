@@ -1,0 +1,100 @@
+{
+  "_note": "Format ESTIMÉ à l'oeil, aucun fichier source disponible pour mesurer (image collée en chat, introuvable sur disque). À corriger dès que le fichier réel arrive : remesurer canvas.width/height et toutes les boîtes.",
+  "canvas": { "width": 1080, "height": 1200, "bg": "white" },
+  "backgroundTexture": {
+    "src": null,
+    "note": "le fond gris/flou derrière la flèche et le titre est aussi un asset photographique absent du fichier source -> laissé blanc, slot déclaré"
+  },
+  "tokens": {
+    "colors": {
+      "dark":  "#141414",
+      "teal":  "#6FD9CE",
+      "yellow": "#F5D949",
+      "white": "#FFFFFF",
+      "black": "#111111"
+    },
+    "fontFamily": "AnthropicSans",
+    "fontFile": "/Users/zenray/Library/Fonts/AnthropicSans-Black.ttf",
+    "fontFileBold": "/Users/zenray/Library/Fonts/AnthropicSans-Black.ttf"
+  },
+  "title": {
+    "bg": "dark",
+    "text": "LE PIRE GENDRE",
+    "textColor": "white",
+    "box": { "x": 0, "y": 0, "w": 1080, "h": 150 }
+  },
+  "subtitle": {
+    "bg": "teal",
+    "box": { "x": 0, "y": 150, "w": 1080, "h": 220 },
+    "runs": [
+      { "text": "Nous recherchons une", "emph": false },
+      { "text": "complice célibataire prête", "emph": true },
+      { "text": "à piéger ses parents", "emph": "mixed" }
+    ]
+  },
+  "criteria": [
+    {
+      "bg": "teal",
+      "box": { "x": 430, "y": 470, "w": 650, "h": 130 },
+      "runs": [
+        { "text": "qui seraient", "emph": false },
+        { "text": "furieux", "emph": true },
+        { "text": "de rencontrer ce", "emph": false },
+        { "text": "nouveau gendre", "emph": false }
+      ]
+    },
+    {
+      "bg": "teal",
+      "box": { "x": 430, "y": 610, "w": 650, "h": 90 },
+      "runs": [
+        { "text": "qui peuvent être", "emph": false },
+        { "text": "drôles", "emph": true },
+        { "text": "à piéger", "emph": false }
+      ]
+    },
+    {
+      "bg": "yellow",
+      "box": { "x": 620, "y": 710, "w": 460, "h": 90 },
+      "runs": [
+        { "text": "très aimants", "emph": true },
+        { "text": "envers leur fille", "emph": false }
+      ]
+    },
+    {
+      "bg": "teal",
+      "box": { "x": 430, "y": 810, "w": 650, "h": 90 },
+      "runs": [
+        { "text": "à cheval sur les", "emph": false },
+        { "text": "principes", "emph": true },
+        { "text": "et les", "emph": false },
+        { "text": "bonnes manières", "emph": true }
+      ]
+    },
+    {
+      "bg": "yellow",
+      "box": { "x": 490, "y": 910, "w": 590, "h": 90 },
+      "runs": [
+        { "text": "qui", "emph": false },
+        { "text": "ne connaissent pas", "emph": true },
+        { "text": "Greg Guillotin", "emph": false }
+      ]
+    }
+  ],
+  "arrow": {
+    "color": "white",
+    "box": { "x": 230, "y": 460, "w": 160, "h": 90 },
+    "rotationDeg": -18
+  },
+  "photo": {
+    "src": null,
+    "box": { "x": 0, "y": 480, "w": 430, "h": 720 },
+    "note": "asset manquant, source introuvable sur disque -> slot transparent, à remplir dès que le fichier arrive"
+  },
+  "tag": {
+    "bg": "dark",
+    "textColor": "white",
+    "text": "PLUS D'INFOS\nEN DESCRIPTION\nPOUR POSTULER",
+    "fontSize": 19,
+    "box": { "x": 780, "y": 1030, "w": 270, "h": 150 }
+  }
+}

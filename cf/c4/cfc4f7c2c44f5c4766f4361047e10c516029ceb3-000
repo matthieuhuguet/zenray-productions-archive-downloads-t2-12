@@ -1,0 +1,790 @@
+# Système de widgets de l’Unreal Editor : inventaire UMG, Slate et extensions d’éditeur
+
+## Résumé exécutif
+
+L’interface d’Unreal Engine repose sur trois couches complémentaires plutôt que sur un framework unique.
+
+**Slate** est la fondation C++ multiplateforme : widgets natifs `SWidget`, arborescence, layout, focus, routage des entrées, dessin, styles, fenêtres, menus, docking et outils d’éditeur. **UMG** ajoute une couche `UObject` sérialisable et exploitable en Blueprint autour de Slate : Widget Blueprints, Designer visuel, animations, delegates dynamiques, propriétés réfléchies et intégration au viewport. **Les frameworks Editor** ajoutent enfin les Details Panels, Property Editor, ToolMenus, onglets dockables, toolkits d’assets, modes d’édition, graph editors, Editor Utility Widgets et divers sélecteurs spécialisés. citeturn4view0turn21search3turn8search0turn8search6
+
+La relation fondamentale est la suivante :
+
+```mermaid
+flowchart TD
+    A[Plugin ou application] --> B{Type d'interface}
+    B -->|Runtime visuel / Blueprint| C[UMG]
+    B -->|Contrôle bas niveau / Editor natif| D[Slate]
+    B -->|Outil d'éditeur rapide| E[Editor Utility Widget]
+
+    C --> C1[UWidget / UUserWidget]
+    C1 --> C2[Widget Blueprint<br/>WidgetTree + Animations + Bindings]
+    C2 --> D1[SWidget sous-jacent]
+
+    E --> E1[UEditorUtilityWidget]
+    E1 --> C1
+    E1 --> E2[Tab ou fenêtre Editor]
+
+    D --> D1[SWidget]
+    D1 --> D2[SLeafWidget]
+    D1 --> D3[SPanel]
+    D1 --> D4[SCompoundWidget]
+
+    D1 --> F[SlateApplication]
+    F --> G[Input, focus, hit-test]
+    F --> H[Prepass, layout, paint]
+    H --> I[Invalidation et batching]
+    I --> J[Slate Renderer / RHI]
+
+    K[Editor Frameworks] --> D
+    K --> K1[ToolMenus]
+    K --> K2[PropertyEditor]
+    K --> K3[TabManager / SDockTab]
+    K --> K4[AssetEditorToolkit]
+    K --> K5[GraphEditor / Modes]
+```
+
+`UWidget::TakeWidget()` construit ou retourne le `SWidget` interne, tandis que `RebuildWidget()` constitue le point de remplacement principal pour un composant UMG natif personnalisé. Epic déconseille de dériver directement de `SWidget` : les points de départ normaux sont `SLeafWidget`, `SPanel` ou `SCompoundWidget`; ce dernier héberge typiquement un enfant dans son `ChildSlot`. citeturn8search0turn8search1turn8search2turn8search4
+
+Les conclusions les plus importantes sont les suivantes :
+
+| Conclusion | Conséquence pratique |
+|---|---|
+| UMG et Slate ne sont pas deux moteurs UI concurrents | UMG est généralement une façade réfléchie et sérialisable au-dessus de contrôles Slate |
+| L’Unreal Editor est majoritairement construit en Slate | Les extensions professionnelles complexes finissent presque toujours par utiliser Slate ou un framework Editor lui-même construit en Slate |
+| UMG reste le chemin le plus rapide pour les designers | Widget Blueprints, animations et Editor Utility Widgets couvrent une grande partie des outils internes sans écrire toute l’interface en C++ |
+| Slate n’est ni purement « immediate mode » ni purement « retained mode » au sens moderne | L’arbre `SWidget` persiste, mais le layout et le paint ont historiquement été évalués fréquemment; l’invalidation introduit une rétention explicite des résultats |
+| Les bindings UMG classiques ne constituent pas le modèle de données recommandé pour une UI importante | Epic recommande les mises à jour événementielles et MVVM/FieldNotify plutôt que des fonctions ou attributs évalués chaque frame |
+| Le framework Editor est un ensemble de modules spécialisés | Menus, détails, onglets, graphes, toolkits et modes ont des API d’extension distinctes |
+| L’exhaustivité absolue ne peut pas se limiter à la documentation | Une vérification finale exige l’énumération du code source et des plugins activés, car Epic ne publie pas une taxonomie unique de tous les widgets internes |
+
+Epic a publié Unreal Engine 5.8 le 23 juin 2026 et l’identifie comme la dernière version majeure UE5 actuellement prévue, tout en annonçant la poursuite des corrections de bugs et de régressions. Aucun produit distinct officiellement nommé « UE 5 LTS » n’apparaît dans ces annonces : le présent rapport utilise donc **UE 5.8 comme référence stable actuelle**, et non comme une branche LTS formellement garantie. citeturn20search1turn20search2
+
+## Périmètre, hypothèses et méthode
+
+**Versions considérées.** L’inventaire cible UE 5.8, puis compare les évolutions publiquement vérifiables de UE 5.2 à UE 5.7. Les pages anciennes UE 4.27 ne sont utilisées que lorsqu’elles restent la référence officielle la plus détaillée pour une famille de widgets; chaque usage de cette documentation historique est recoupé avec l’API UE 5.x ou signalé comme point de contrôle. citeturn4view0turn17search5turn8search6
+
+**Définition de “complet”.** Le rapport vise l’exhaustivité au niveau des capacités, familles de widgets, couches architecturales, API publiques et principaux points d’extension. Il ne prétend pas énumérer chaque sous-classe `SWidget` privée de chaque plugin Epic, plateforme, éditeur métier, expérimentation ou module tiers. L’API UE 5.8 contient des centaines de contrôles spécialisés, dont une partie n’est pas documentée comme API stable et peut varier selon les plugins compilés.
+
+**Portée fonctionnelle.** Sont inclus : runtime UMG, Slate runtime, UI de l’éditeur, Editor Utility Widgets, Property Editor, ToolMenus, docking, toolkits, modes, intégration Blueprint/C++, styles, localisation, accessibilité, animation, rendu, profilage, tests et sérialisation. CommonUI, Model-View-ViewModel, AudioWidgets, ScreenReader et ScriptableEditorWidgets sont traités comme **couches officielles optionnelles**, et non comme composants obligatoires du noyau UMG.
+
+**Sources prioritaires.** La base primaire est le portail Epic « Creating User Interfaces with UMG and Slate », complété par la référence API, les release notes et les guides d’extension de l’éditeur. Les ressources communautaires servent surtout à identifier les zones sous-documentées et les exemples de code, sans remplacer l’API Epic comme autorité. citeturn4view0turn21search3turn21search5turn21search4
+
+Les principaux corpus consultés sont :
+
+| Corpus | Usage |
+|---|---|
+| Creating User Interfaces with UMG and Slate | Carte générale des fonctionnalités, guides UMG/Slate, texte, accessibilité, optimisation et debugging citeturn4view0 |
+| Slate UI Framework | Architecture et programmation Slate native citeturn21search3 |
+| Références `SWidget`, `SCompoundWidget`, `UWidget` et `UWidgetBlueprint` | Contrats C++, cycle de reconstruction et modèle d’assets citeturn8search1turn8search2turn8search6turn22search2 |
+| Release notes UE 5.2–5.8 | Changements de version et outils de diagnostic citeturn17search1turn17search3turn20search1 |
+| YawLighthouse UMG/Slate Compendium | Recoupement communautaire de l’input, du focus, du layout et des performances citeturn21search0turn21search4 |
+| Unreal Community Wiki et Ikrima.dev | Exemples de Details Customization et d’extensions Slate historiques citeturn21search2turn21search10turn21search21 |
+
+**Hypothèses explicites.**
+
+1. « Unreal Editor UI widget system » désigne à la fois les widgets utilisés pour construire l’éditeur et les systèmes permettant aux plugins de l’étendre.
+2. « Widget type » inclut les contrôles visuels, les panels, les hôtes, les widgets de collection, les contrôles non visuels associés à l’input et les composants de monde.
+3. Les plugins expérimentaux sont inventoriés, mais leur statut expérimental est conservé.
+4. Les classes internes sans documentation publique sont considérées comme non contractuelles.
+5. Les différences de version ne sont retenues que lorsqu’une release note, une page API versionnée ou une annonce Epic les confirme.
+6. La compatibilité console, mobile, IME et lecteur d’écran doit être validée sur la plateforme cible; l’existence d’une API commune ne garantit pas la parité fonctionnelle.
+
+## Architecture et cycle de vie du système
+
+**Slate Core.** `SWidget` définit la géométrie, les attributs, l’état enabled/visibility, les événements d’entrée, la navigation, l’accessibilité, le calcul de taille et le paint. Les widgets Slate sont normalement détenus par `TSharedRef` ou `TSharedPtr`, créés avec `SNew`/`SAssignNew` et configurés par une structure `FArguments` alimentée par les macros `SLATE_BEGIN_ARGS`, `SLATE_ATTRIBUTE`, `SLATE_ARGUMENT` et `SLATE_EVENT`. citeturn8search1turn21search5
+
+**Composition plutôt qu’héritage profond.** `SLeafWidget` est adapté aux primitives sans enfant; `SPanel` gère plusieurs enfants et leurs slots; `SCompoundWidget` constitue le choix habituel pour un widget composé avec un enfant racine. Les panels définissent leur propre classe de slot : padding, alignement, dimension automatique ou étirée, ligne/colonne, ancres ou ordre Z selon le conteneur. citeturn8search1turn8search2turn6search16
+
+**UMG.** `UWidget` est un objet réfléchi qui expose à l’éditeur et à Blueprint les propriétés du contrôle Slate correspondant. `UUserWidget` ajoute la composition, le graphe Blueprint, les événements de cycle de vie, les animations et l’ajout au viewport. `UWidgetBlueprintGeneratedClass` assure notamment l’initialisation spécialisée et le branchement des delegates dynamiques. citeturn8search6turn22search5
+
+**Bridge UMG–Slate.** Le chemin standard d’un widget C++ personnalisé est :
+
+```cpp
+UCLASS()
+class UStatusPill : public UWidget
+{
+    GENERATED_BODY()
+
+protected:
+    virtual TSharedRef<SWidget> RebuildWidget() override;
+    virtual void SynchronizeProperties() override;
+
+private:
+    TSharedPtr<class SStatusPill> MySlateWidget;
+};
+```
+
+`RebuildWidget()` crée le contrôle Slate; `SynchronizeProperties()` pousse les propriétés `UObject` vers celui-ci; `ReleaseSlateResources()` doit libérer les références partagées lorsque le widget est détruit. À l’inverse, `UNativeWidgetHost` permet d’insérer un widget Slate natif dans une hiérarchie UMG, avec une racine native unique. citeturn8search0turn8search4turn6search6
+
+**Cycle UMG.** Les principaux hooks sont `OnInitialized`/`NativeOnInitialized`, `PreConstruct`/`NativePreConstruct`, `Construct`/`NativeConstruct`, `Tick`/`NativeTick`, paint natif ou Blueprint et `Destruct`/`NativeDestruct`. `PreConstruct` peut être invoqué dans le Designer et au runtime, ce qui interdit d’y supposer la disponibilité complète du monde de jeu. Une instance peut traverser plusieurs constructions visuelles au cours de son existence, tandis que `OnInitialized` représente l’initialisation unique recherchée pour les branchements durables.
+
+**Métadonnées de composition.** `BindWidget` et `BindWidgetOptional` associent des membres C++ à des widgets nommés du Designer; `BindWidgetAnim` et `BindWidgetAnimOptional` font de même pour les animations. `IsBindableEvent`, `DesignerRebuild` et les métadonnées de catégories ou de visibilité Blueprint complètent l’exposition à l’auteur. citeturn8search5
+
+**Pipeline d’entrée et de rendu.**
+
+```mermaid
+sequenceDiagram
+    participant OS as OS / plateforme
+    participant App as FSlateApplication
+    participant Hit as Hit-test grid
+    participant W as SWidget ciblé
+    participant Tree as Arbre Slate
+    participant Inv as Invalidation
+    participant Rend as Slate Renderer
+
+    OS->>App: Souris, clavier, touch, analogique
+    App->>Hit: Recherche sous le pointeur ou focus
+    Hit-->>App: Widget path
+    App->>Tree: Preview / tunnel éventuel
+    App->>W: Événement principal
+    W-->>App: FReply Handled ou Unhandled
+    App->>Tree: Bubble si non consommé
+    App->>App: Focus, capture, drag, navigation
+
+    App->>Inv: Prepass / invalidations
+    Inv->>Tree: Recalcul sélectif layout et paint
+    Tree->>Rend: FSlateDrawElement
+    Rend->>Rend: Tri, clipping, batches, buffers
+```
+
+Les handlers Slate renvoient généralement `FReply`, qui peut marquer l’événement traité, demander un focus, capturer ou libérer la souris, déclencher la détection d’un drag ou manipuler le curseur. Le focus clavier, le focus utilisateur, la capture et la navigation constituent des états distincts. citeturn8search1turn5search6turn9search2
+
+**Retained mode contre immediate mode.** Slate conserve durablement une arborescence de `SWidget`, ce qui relève d’une architecture retained. Epic a toutefois historiquement décrit Slate comme « immediate mode » parce que le prépass, les attributs et le paint pouvaient être réévalués chaque frame. Les systèmes modernes d’invalidation conservent explicitement la géométrie, le layout et les éléments peints jusqu’à ce qu’une modification exige leur recalcul. UMG ajoute par-dessus cette arborescence une représentation `UObject` sérialisable. citeturn21search24turn11view0
+
+**Invalidation.** L’Invalidation Box cache une sous-arborescence; l’invalidation globale étend ce mécanisme à la fenêtre `SWindow`; le Retainer Box rend ses enfants dans une texture intermédiaire pouvant être rafraîchie à une cadence ou une phase contrôlée. Les causes d’invalidation distinguent notamment paint, layout, visibilité et enfants. Un widget volatile évite le cache de paint tout en pouvant conserver certaines données de layout. citeturn11view0
+
+**Batching.** Les `FSlateDrawElement` sont regroupés en lots compatibles. Un batch est contraint par la ressource, le shader, le clipping, la couche et d’autres états; un changement de clip ou de ressource peut donc produire un draw call supplémentaire. Les sprites partageant un atlas et une couche peuvent être regroupés. citeturn5search1turn17search5turn7search1
+
+## Inventaire détaillé des fonctionnalités
+
+**Fondations et classes abstraites**
+
+| Famille | Types et capacités |
+|---|---|
+| Racines Slate | `SWidget`, `SLeafWidget`, `SPanel`, `SCompoundWidget`, `SObjectWidget` |
+| Racines UMG | `UVisual`, `UWidget`, `UPanelWidget`, `UContentWidget`, `UUserWidget` |
+| Slots | `UPanelSlot`, Canvas/Box/Grid/Overlay/Wrap/UniformGrid slots et slots Slate propres à chaque panel |
+| Construction | `SNew`, `SAssignNew`, `FArguments`, attributs, arguments, events, `ChildSlot`, named slots |
+| Hosting | `TakeWidget`, `RebuildWidget`, `NativeWidgetHost`, `SObjectWidget`, `WidgetComponent` |
+| Réflexion | `UPROPERTY`, `UFUNCTION`, delegates dynamiques, métadonnées `BindWidget*`, catégories Designer |
+
+Ces racines permettent de construire un widget pur Slate, un wrapper UMG d’un widget Slate, un Widget Blueprint ou un widget réutilisable combinant C++ et contenu Designer. citeturn8search0turn8search1turn8search2turn8search5turn8search6
+
+**Widgets visuels et interactifs UMG**
+
+| Catégorie | Widgets principaux | Fonctionnalités caractéristiques |
+|---|---|---|
+| Affichage | `Image`, `TextBlock`, `RichTextBlock`, `ProgressBar` | Brushes, texte localisé, matériaux UI, pourcentage, texte riche et décorateurs |
+| Décoration | `Border`, `BackgroundBlur`, `Separator`, `Spacer` | Fond, brush, padding, blur, séparation et espace de layout |
+| Actions | `Button`, `CheckBox` | Click, press, release, hover, checked state, styles par état |
+| Valeurs | `Slider`, `SpinBox`, `RadialSlider` selon plugin/module | Valeurs normalisées ou numériques, capture, step, min/max |
+| Choix | `ComboBoxString`, `InputKeySelector` | Liste déroulante, sélection de touche ou bouton |
+| Texte éditable | `EditableText`, `EditableTextBox`, `MultiLineEditableText`, `MultiLineEditableTextBox` | Validation, commit, mot de passe, sélection, virtual keyboard, multiline |
+| Activité | `Throbber`, `CircularThrobber` | Indication d’attente animée |
+| Expansion et popup | `ExpandableArea`, `MenuAnchor`, tooltip personnalisé | Contenu pliable, menus ancrés et bulles d’aide |
+| Barre de défilement | `ScrollBar` | Orientation, thumb, style, offset |
+| Portail | `Viewport`, `WindowTitleBarArea` lorsqu’exposé | Contenu de viewport ou interaction avec la zone de fenêtre |
+| Composition utilisateur | `UserWidget`, `NamedSlot`, `NativeWidgetHost` | Réutilisation, injection de contenu et pont vers Slate |
+
+La référence historique officielle décrit les primitives UMG, tandis que le module UMG UE 5.x fournit l’inventaire actuel des classes publiques. `RichTextBlock` accepte des styles issus de Data Tables et des décorateurs capables d’insérer des images ou du contenu Slate personnalisé. citeturn12search8turn17search5turn8search6turn17search14
+
+**Panels et layout**
+
+| Panel ou mécanisme | Modèle |
+|---|---|
+| `CanvasPanel` | Positionnement par ancres, offsets, alignement et Z-order |
+| `HorizontalBox` / `VerticalBox` | Flux linéaire, slots Auto/Fill, padding et alignement |
+| `Overlay` | Empilement de plusieurs enfants |
+| `GridPanel` | Grille avec lignes, colonnes et span |
+| `UniformGridPanel` | Cellules de dimensions uniformes |
+| `WrapBox` | Flux avec retour à la ligne |
+| `SizeBox` | Contraintes explicites de largeur, hauteur, min, max ou aspect |
+| `ScaleBox` | Mise à l’échelle selon Stretch et StretchDirection |
+| `SafeZone` | Compensation des zones sûres écran/plateforme |
+| `ScrollBox` | Défilement d’un ensemble non virtualisé |
+| `WidgetSwitcher` | Un seul enfant actif parmi plusieurs |
+| `DynamicEntryBox` | Génération et pooling d’entrées |
+| `RetainerBox` | Rendu intermédiaire dans une texture et cadence contrôlée |
+| `InvalidationBox` | Cache de layout/paint d’une sous-arborescence |
+| `NamedSlot` | Point d’insertion exposé dans un widget composé |
+
+`ScrollBox` est prévu pour des ensembles modestes et ne virtualise pas ses enfants; les très grandes collections doivent utiliser `ListView`, `TileView` ou `TreeView`. `CanvasPanel` et `Overlay` peuvent multiplier les couches et réduire le batching lorsqu’ils sont surutilisés. citeturn9search8turn11view1
+
+**Collections virtualisées**
+
+`ListView`, `TileView` et `TreeView` virtualisent les entrées visibles, recyclent les widgets et séparent l’objet de données de sa représentation. Les événements couvrent la génération, la libération, la sélection, le double-clic, le scroll into view et, pour l’arbre, l’expansion. Les widgets d’entrée doivent traiter le fait qu’une même instance visuelle peut représenter successivement plusieurs objets. citeturn12search9turn12search10turn12search17
+
+Les couches sous-jacentes sont notamment `SListView`, `STileView`, `STreeView`, `STableRow`, `SObjectTableRow` et les modèles de sélection simple, multiple ou nulle. UE 5.2 a ajouté `ObservableArray` à Slate et commencé à réduire les dépendances directes de `SListView` à un type de conteneur particulier. citeturn17search1turn17search6
+
+**Widgets Slate utiles au runtime et à l’éditeur**
+
+En plus des équivalents natifs des widgets UMG, Slate expose :
+
+| Domaine | Exemples |
+|---|---|
+| Texte et édition | `STextBlock`, `SRichTextBlock`, `SEditableText`, `SEditableTextBox`, `SMultiLineEditableText` |
+| Actions | `SButton`, `SCheckBox`, `SHyperlink`, `SComboButton`, `SComboBox`, `SSegmentedControl` |
+| Valeurs | `SSlider`, `SSpinBox`, `SProgressBar`, `SCircularThrobber` |
+| Layout | `SBox`, `SBorder`, `SOverlay`, `SHorizontalBox`, `SVerticalBox`, `SGridPanel`, `SUniformGridPanel`, `SWrapBox`, `SSplitter`, `SScrollBox`, `SScrollBar` |
+| Collections | `SListView`, `STileView`, `STreeView`, `STableRow`, header rows |
+| Menus | `SMenuAnchor`, `SComboButton`, menu builders et widgets ToolMenus |
+| Fenêtres | `SWindow`, `SDockTab`, docking nodes et tab managers |
+| Recherche | `SSearchBox`, filtres, suggestion lists |
+| Navigation | breadcrumbs, navigation bars, segmented controls |
+| Notifications | `SNotificationItem`, notification manager, throbbers et progress feedback |
+| Sélecteurs Editor | Asset picker, class viewer, object/property picker, color picker, font picker |
+| Graphes | `SGraphEditor`, `SGraphNode`, `SGraphPin`, connection drawing policies |
+| Viewports | `SEditorViewport`, overlays et toolbars de viewport |
+| Inspection | Details views, property rows, category headers, tree views |
+
+Les contrôles natifs utilisent des styles typés tels que `FButtonStyle`, `FCheckBoxStyle`, `FTextBlockStyle`, `FEditableTextBoxStyle`, `FComboButtonStyle`, `FTableRowStyle` et `FProgressBarStyle`. `SComboButton`, `SSegmentedControl`, `SProgressBar` et `SCircularThrobber` illustrent cette API de styles et d’arguments. citeturn5search2turn5search3turn5search5turn5search7turn5search8
+
+**Entrées, focus et navigation**
+
+Le système couvre :
+
+- souris : move, down, up, double-click, wheel, enter, leave, capture et curseurs;
+- clavier : key down/up, key char, raccourcis et input chords;
+- touch et pointeurs;
+- analogique et manette;
+- drag-and-drop;
+- focus clavier et focus par utilisateur local;
+- navigation Explicit, Custom, Escape, Stop et Wrap;
+- hit-test selon `Visibility`;
+- input modes Game Only, UI Only et Game and UI;
+- clavier virtuel et méthodes d’entrée pour les champs éditables;
+- tooltips et context menus;
+- utilisateurs Slate distincts, utiles au multijoueur local.
+
+Les configurations de navigation peuvent être remplacées; Epic fournit notamment une configuration permettant d’utiliser les sticks et la croix directionnelle. Les handlers `FReply` déterminent si le parcours continue et peuvent demander focus, capture ou drag. citeturn8search1turn5search6turn9search2
+
+La visibilité ne signifie pas seulement « visible ou caché ». Les variantes déterminent aussi la participation au layout et au hit-test : un élément peut rester visible tout en ignorant le hit-test, ignorer seulement ses enfants ou être complètement supprimé du layout.
+
+**Événements et delegates**
+
+Slate utilise des delegates C++ et des handlers virtuels : `OnClicked`, `OnCheckStateChanged`, `OnSelectionChanged`, `OnKeyDown`, `OnMouseButtonDown`, `OnPaint`, `OnFocusReceived`, `OnNavigation`, etc. Les `SLATE_EVENT` sont généralement fixés lors de la construction, mais des setters ou attributs peuvent permettre une évolution ultérieure.
+
+UMG expose des delegates Blueprint multicast, des événements de cycle de vie et des surcharges `Native*`. Les Event Dispatchers sont préférables à un polling dans `Tick` pour les changements de données. Les timers ordinaires, latent actions, animations et active timers Slate constituent les autres mécanismes de travail différé. Les active timers permettent notamment de réveiller Slate lorsque l’application peut autrement dormir. citeturn21search24turn11view1
+
+**Binding et modèles de données**
+
+| Mécanisme | Comportement | Usage recommandé |
+|---|---|---|
+| Attribut Slate `TAttribute` | Valeur constante ou delegate évalué à la demande | Propriétés légères de widgets Slate |
+| `TSlateAttribute` | Attribut conscient du widget et de l’invalidation | Nouveaux widgets Slate performants |
+| Binding UMG de propriété | Liaison générée entre une propriété source et une propriété visuelle | Prototypes ou cas simples |
+| Binding UMG de fonction | Fonction Blueprint/C++ interrogée pour produire la valeur | À éviter dans les interfaces fréquentes |
+| Setter événementiel | Une mutation de modèle appelle explicitement `SetText`, `SetVisibility`, etc. | Choix par défaut performant |
+| Event dispatcher/delegate | Notification push | Systèmes modulaires |
+| MVVM/FieldNotify | Viewmodel, champs notifiables et bindings déclaratifs | Interfaces data-driven plus importantes |
+| List item object | Objet de données séparé du widget d’entrée virtualisé | Listes, arbres et tuiles |
+
+Epic recommande d’éviter les raw attribute bindings et les fonctions de binding interrogées à chaque frame au profit de mises à jour événementielles. Certains setters remplacent ou rompent la liaison existante à la propriété modifiée. citeturn11view1turn6search13turn6search24
+
+Le plugin Model-View-ViewModel ajoute Viewmodels, View Binding Panel, FieldNotify, conversion functions, modes d’exécution et outils de debugging. Les Viewmodels Blueprint et les champs FieldNotify ont été renforcés en UE 5.3; le système peut également éviter certaines propagations lorsque la valeur ne change pas. citeturn6search5turn6search10turn5search0
+
+**Styling, thèmes, brushes et icônes**
+
+`FSlateStyleSet` est un dictionnaire nommé de brushes, fonts, couleurs, marges, sons et structures de style. Un style set peut définir un parent de fallback et être enregistré auprès du registre Slate. `FCoreStyle` contient les primitives générales; `FAppStyle` représente le style de l’application Editor; les plugins peuvent enregistrer leur propre style set. citeturn17search22
+
+`FSlateBrush` décrit une ressource graphique, sa taille, sa teinte, son mode de dessin, ses marges nine-slice, son tiling, son mirroring, ses UV et, pour les rounded boxes, son outline. Sa ressource peut être une texture, un matériau ou un objet d’atlas compatible. citeturn17search24
+
+Les principaux draw modes sont conceptuellement :
+
+- **Image** : image simple;
+- **Box** : nine-slice avec centre;
+- **Border** : bordure sans remplir le centre;
+- **RoundedBox** : rectangle arrondi paramétrique;
+- **NoDrawType** : brush sans dessin.
+
+Les icônes Editor utilisent généralement `FSlateIcon`, qui référence un style set et des clés de brush normal/petit format. Les macros de styles telles que les familles `IMAGE_BRUSH`, `BOX_BRUSH` et `VECTOR_IMAGE_BRUSH` facilitent la déclaration. Les SVG/vector brushes conviennent particulièrement aux icônes devant rester nettes à plusieurs échelles.
+
+UE expose également `FStyleTheme`, qui identifie un thème, son nom, son fichier et son jeu de couleurs. Il faut néanmoins distinguer le **thème colorimétrique de l’Editor** des styles structurels : une couleur tirée de `FStyleColors` suit mieux le thème qu’une couleur codée en dur, mais les métriques et brushes personnalisés restent sous la responsabilité du plugin. citeturn17search23
+
+**Fonts, texte et localisation**
+
+`FText` est le type à employer pour le texte destiné à l’utilisateur; `FString` et `FName` ne conservent pas les mêmes métadonnées de localisation. Les outils couvrent `LOCTEXT`, `NSLOCTEXT`, String Tables, Text Formatting, nombres, monnaies, dates, pluriels, cultures, Localization Dashboard, gather, archives, compilation et changement de culture. citeturn12search1
+
+Le système de fonts couvre les Font Assets, font faces, composite fonts, fallback par plage de caractères, outline, matériaux de fonte et cache runtime. Les composite fonts sont indispensables aux interfaces multilingues comprenant, par exemple, latin, japonais, chinois et coréen. citeturn12search2turn13search11
+
+Le shaping peut fonctionner en mode simple ou complet, avec direction Auto, gauche-vers-droite ou droite-vers-gauche. `flow_direction_preference` permet également d’influencer la direction d’une hiérarchie UMG. citeturn6search7turn17search9
+
+`RichTextBlock` ajoute spans stylés, images en ligne et décorateurs personnalisés. Cette puissance augmente cependant le coût de layout et de shaping, en particulier lorsque le texte change fréquemment. citeturn17search14turn11view1
+
+**Accessibilité**
+
+Chaque widget UMG peut exposer :
+
+- `Can Children Be Accessible`;
+- `Accessible Behavior`;
+- `Accessible Text`;
+- `Accessible Summary Behavior`;
+- `Accessible Summary Text`.
+
+Les comportements documentés comprennent Auto, Summary, Custom, Tool Tip et Not Accessible. Les widgets Slate personnalisés peuvent surcharger `SWidget::CreateAccessibleWidget()` et fournir un `FSlateAccessibleWidget` spécialisé. citeturn17search7
+
+UE 5.8 documente le support de lecteurs d’écran tiers sous Windows et de VoiceOver sous iOS comme fonctionnalité expérimentale. Les contrôles communément pris en charge comprennent notamment boutons, checkboxes, combo boxes, hyperlinks, images, layouts, scrollbars, sliders, textes, champs éditables, fenêtres, listes et éléments de liste. citeturn17search7turn17search19
+
+Trois plugins officiels composent la couche récente d’accessibilité vocale : **Text To Speech**, **Screen Reader** et **Slate Screen Reader**. La documentation UE 5.8 indique que le moteur TTS fourni ne prend actuellement en charge que l’anglais, toutes plateformes confondues. Le framework ScreenReader fournit files d’annonces, priorités, utilisateurs, politiques de navigation et extensibilité. citeturn17search16turn17search19turn17search21
+
+L’accessibilité ne se limite pas au lecteur d’écran : navigation complète au clavier/manette, ordre de focus, contraste, taille de texte, absence de dépendance exclusive à la couleur, durée des notifications, réduction du mouvement et alternative aux interactions à précision élevée restent des responsabilités de conception.
+
+**Animations et timeline**
+
+Le Widget Blueprint Editor comprend un panneau Animations et une timeline fondée sur Sequencer. Les pistes peuvent animer les propriétés exposées des widgets : translation, rotation, scale, shear, opacity, couleurs et autres propriétés interpolables. citeturn3search4turn3search13
+
+`UWidgetAnimation` permet lecture, pause, arrêt, reverse, nombre de boucles, vitesse, plage temporelle et événements de fin. Les animations peuvent être reliées en C++ via `BindWidgetAnim` et des delegates. Les animations Sequencer qui modifient le layout coûtent davantage que les effets purement matériels ou de transform qui évitent une reconstruction importante. citeturn8search5turn11view1
+
+Ordre de coût généralement recommandé par Epic :
+
+1. effet dans un matériau UI;
+2. animation scriptée légère sans layout;
+3. animation UMG/Sequencer;
+4. animation qui modifie en continu taille, padding, wrap ou structure du layout. citeturn11view1
+
+**Rendu dans le monde**
+
+`UWidgetComponent` rend un `UUserWidget` dans le monde, généralement via une cible de rendu, en espace World ou Screen. `UWidgetInteractionComponent` simule un pointeur virtuel et envoie des événements de touches ou pointeur à un widget 3D. Il faut gérer draw size, redraw policy, fréquence, distance, collision/hit testing, focus et résolution du render target. citeturn3search28turn5search4
+
+Ces composants sont fonctionnellement puissants mais plus coûteux qu’un overlay écran direct : chaque surface peut imposer render target, mise à jour, mémoire et travail de composition supplémentaires.
+
+**Blueprint et scripting**
+
+Le Widget Blueprint Editor regroupe Designer, Graph, Palette, Hierarchy, Details et Animations. Le Designer produit le `WidgetTree`; le Graph gère logique, delegates, fonctions et variables. citeturn6search23turn3search4
+
+Les points courants comprennent :
+
+- `Create Widget`;
+- `Add to Viewport` ou `Add to Player Screen`;
+- `Remove from Parent`;
+- setters de focus et input mode;
+- Widget Blueprint Library;
+- Widget Layout Library;
+- Slate Blueprint Library pour conversions de géométrie et opérations de paint;
+- Event Dispatchers;
+- interfaces Blueprint;
+- exposé sur spawn;
+- variables Designer;
+- animations;
+- drag-and-drop operations;
+- création dynamique de widgets et entrées de listes.
+
+Les Editor Utility Widgets réemploient UMG et Blueprint dans des tabs de l’éditeur. Epic les recommande pour la majorité des outils de scripting nécessitant une interface riche. Ils ont accès à davantage de fonctions Editor que les Blueprints runtime. citeturn22search3turn22search16
+
+**API C++ et modules**
+
+| Couche | Modules principaux |
+|---|---|
+| Slate runtime | `SlateCore`, `Slate`, `ApplicationCore`, `InputCore` |
+| UMG runtime | `UMG`, avec dépendances Slate/SlateCore |
+| UMG authoring | `UMGEditor` |
+| Éditeur général | `UnrealEd`, `EditorFramework`, `MainFrame`, `LevelEditor` |
+| Menus | `ToolMenus` |
+| Détails/propriétés | `PropertyEditor` |
+| Assets | `AssetTools`, `ContentBrowser`, `ContentBrowserData` |
+| Toolkits/tabs | `WorkspaceMenuStructure`, modules d’asset editor concernés |
+| Utilities | `Blutility`, `EditorScriptingUtilities`, `ScriptableEditorWidgets` |
+| Graphes | `GraphEditor`, `KismetWidgets`, `BlueprintGraph` selon usage |
+| MVVM | plugin/module ModelViewViewModel |
+| Accessibilité | `TextToSpeech`, `ScreenReader`, `SlateScreenReader` |
+
+Les modules Editor doivent être déclarés comme tels dans le projet ou le plugin et ne doivent pas être requis par une cible Shipping. `WITH_EDITOR` et `WITH_EDITORONLY_DATA` protègent respectivement le code et certaines données spécifiques à l’éditeur.
+
+**Personnalisation des Details Panels**
+
+Le système Property Editor permet deux personnalisations principales :
+
+- `IDetailCustomization` pour réorganiser l’affichage d’une classe ou d’objets;
+- `IPropertyTypeCustomization` pour remplacer l’éditeur d’un `UStruct` ou type de propriété.
+
+Les outils associés comprennent `IDetailLayoutBuilder`, `IDetailCategoryBuilder`, `IDetailChildrenBuilder`, `IPropertyHandle`, `FDetailWidgetRow`, filtres, visibility attributes, validation, reset-to-default, transactions, multi-selection et custom rows. `CustomizeHeader()` remplace la ligne d’en-tête d’un type de propriété; `CustomizeChildren()` contrôle ses descendants. citeturn7search12turn21search2
+
+Les customizations doivent être enregistrées puis désenregistrées auprès de `FPropertyEditorModule`, idéalement avec notification de changement des customizations lorsque nécessaire. Elles sont particulièrement adaptées aux éditeurs d’assets, settings, composants, structs et propriétés complexes.
+
+`DetailsView` et `SinglePropertyView` de ScriptableEditorWidgets exposent une partie de ces capacités à Editor Utility Widgets : objet cible, recherche, catégories autorisées ou interdites, propriétés filtrées, favorites et paramètres d’accessibilité. citeturn7search1
+
+**Menus, toolbars et commandes**
+
+`UToolMenus` est le système moderne pour enregistrer ou étendre menus contextuels, barres de menu et toolbars. Il gère menus nommés, sections, entries, insert positions, context objects, entrées dynamiques, actions, sous-menus et propriétaires facilitant le cleanup. Il est accessible en C++, Blueprint et Python selon l’API utilisée. citeturn7search0turn22search18
+
+`TCommands`, `UI_COMMAND`, `FUICommandInfo` et `FUICommandList` séparent la définition d’une commande de sa présentation. Une commande peut mapper Execute, CanExecute, IsChecked et IsVisible, porter une icône, un label, un tooltip et un raccourci. Le même command mapping peut alimenter menu, toolbar, context menu et raccourci clavier. citeturn9search7
+
+Le modèle recommandé pour un plugin moderne est :
+
+```cpp
+void FMyEditorModule::StartupModule()
+{
+    FMyCommands::Register();
+
+    CommandList = MakeShared<FUICommandList>();
+    CommandList->MapAction(
+        FMyCommands::Get().OpenTool,
+        FExecuteAction::CreateRaw(this, &FMyEditorModule::OpenTool),
+        FCanExecuteAction::CreateRaw(this, &FMyEditorModule::CanOpenTool)
+    );
+
+    UToolMenus::RegisterStartupCallback(
+        FSimpleMulticastDelegate::FDelegate::CreateRaw(
+            this, &FMyEditorModule::RegisterMenus));
+}
+```
+
+Au shutdown, il faut retirer callbacks, propriétaires ToolMenus, tab spawners, styles, commands et customizations, particulièrement lorsqu’un module peut être rechargé.
+
+**Tabs, fenêtres et docking**
+
+Les éléments clés sont :
+
+- `SWindow` pour une fenêtre native Slate;
+- `SDockTab` pour un onglet dockable;
+- `FGlobalTabmanager` pour les tabs globaux;
+- `FTabManager` pour les layouts locaux;
+- nomad tab spawners;
+- document tabs;
+- `FLayout` et ses splitters/stacks;
+- Workspace Menu categories;
+- persistance de layout;
+- modal et non-modal windows.
+
+Le guide Slate Editor Window montre la création d’un plugin de fenêtre autonome. Les Editor Utility Widgets standards s’ouvrent dans un tab dockable avec le Level Editor; UE 5.8 expose aussi `UEditorUtilityDialogWidget` pour des fenêtres modales ou non modales avec barre de boutons standard. citeturn21search5turn22search3turn22search10
+
+`UEditorUtilitySubsystem` peut enregistrer, ouvrir, retrouver, fermer et désenregistrer les tabs créés par des Editor Utility Widgets, y compris depuis Blueprint ou Python. citeturn22search6
+
+**Toolkits, éditeurs d’assets et modes**
+
+`FAssetEditorToolkit` fournit commandes, menu, toolbar, tabs, nom d’application, icône, objets édités, mode standalone ou world-centric et intégration au workflow d’ouverture d’assets. `FWorkflowCentricApplication` et `FApplicationMode` organisent les éditeurs complexes en modes disposant chacun de leur propre layout, tabs et toolbar. citeturn7search13
+
+Pour les modes de viewport, les briques comprennent `UEdMode`, `FModeToolkit`, commandes, widgets de toolkit et, pour les outils interactifs modernes, l’Interactive Tools Framework. Les widgets de viewport reposent habituellement sur `SEditorViewport`, un `FEditorViewportClient`, des overlays Slate et une toolbar.
+
+**Graph editors**
+
+La famille GraphEditor fournit :
+
+- `SGraphEditor`;
+- graph panels;
+- graph nodes et pins Slate;
+- schemas définissant connexions et actions;
+- connection drawing policies;
+- factories de widgets de nodes et pins;
+- command lists;
+- sélection, zoom, marquee, navigation et context menus;
+- transactions et reconstruction du graphe.
+
+Cette famille sert notamment aux Blueprints, matériaux, Niagara, Control Rig, State Trees, Behavior Trees et autres éditeurs nodaux, mais leurs contrôles spécialisés appartiennent à leurs modules respectifs.
+
+**Pickers et widgets Editor spécialisés**
+
+Les outils d’éditeur réutilisables comprennent notamment :
+
+- Asset Picker et Path Picker du Content Browser;
+- Object Picker et Class Viewer;
+- Property Editor et Structure Details View;
+- Color Picker;
+- notifications et progress dialogs;
+- message logs et output logs;
+- source-control widgets;
+- file/directory dialogs;
+- filters et search boxes;
+- tree views;
+- editor viewports;
+- breadcrumbs;
+- graph panels;
+- settings views.
+
+Ils ne sont généralement pas exposés directement dans la Palette UMG. Leur contrat d’extension passe par leur module Editor, un delegate, une factory, un config struct ou un widget Slate natif.
+
+**Plugins et points d’extension**
+
+Un plugin peut intervenir par :
+
+- module `Editor` chargé au démarrage approprié;
+- ToolMenus;
+- tab spawner;
+- Details/Property customizations;
+- Asset Tools et définitions/types d’assets;
+- Content Browser menus, data sources ou extenders;
+- Editor Utility Widgets;
+- modes d’éditeur;
+- settings pages;
+- graph node/pin factories;
+- component visualizers;
+- placement categories;
+- viewport overlays;
+- commands;
+- Slate styles;
+- notifications;
+- editor subsystems;
+- Python;
+- automation tests.
+
+L’ancien modèle `FExtender` existe encore dans certaines zones, mais ToolMenus est devenu le chemin principal pour les menus et toolbars migrés. UE 5.3 a notamment déplacé vers ToolMenus une grande partie des entrées principales des menus Edit, Window et Tools. citeturn7search4turn7search0
+
+**Sérialisation et persistance**
+
+`UWidgetBlueprint` est un asset Editor qui étend `UUserWidget`; il conserve les données d’authoring nécessaires à la compilation du Widget Blueprint, notamment l’arbre source, les bindings et les animations associées. Sa classe générée runtime recrée les instances et branche les delegates. L’API inclut des validations de références circulaires, de noms hérités conflictuels, de leaks Slate et de tickabilité. citeturn22search2turn22search5
+
+Les `UWidget`, `UUserWidget`, styles structurés, brushes, fonts, animations et Data Assets peuvent participer à la sérialisation `UObject`. À l’inverse, un `SWidget` est une structure runtime détenue par smart pointer et reconstruite à partir des données C++/UMG : il n’est pas lui-même un asset `UObject` sérialisé. Cette dernière conclusion est une inférence directe de la séparation `UWidget`/`SWidget` et de `TakeWidget`/`RebuildWidget`. citeturn8search0turn8search1turn8search6
+
+Les changements d’objets Editor doivent utiliser transactions et `Modify()` pour supporter Undo/Redo. Les layouts d’onglets et certains réglages de thème ou d’éditeur sont persistés séparément dans les configurations utilisateur ou projet. UE 5.2 a modifié le Tab Manager pour enregistrer immédiatement certaines opérations de docking/undocking. citeturn7search17
+
+**Extensions officielles adjacentes**
+
+| Plugin/couche | Rôle |
+|---|---|
+| CommonUI | Navigation multiplateforme, activatable widget stack, input routing, prompts, styles centralisés |
+| Model-View-ViewModel | Data binding notifiable et Viewmodels |
+| AudioWidgets | Sliders, meters et contrôles adaptés à l’audio |
+| ScriptableEditorWidgets | DetailsView, SinglePropertyView et widgets Editor exploitables dans UMG |
+| Blutility | Editor Utility Widgets, tasks, dialogs et subsystem |
+| ScreenReader | Framework de lecteur d’écran |
+| SlateScreenReader | Adaptation du framework à la hiérarchie accessible Slate |
+| TextToSpeech | Synthèse vocale de base |
+| AutomationDriver | Simulation d’input pour tests fonctionnels |
+
+Automation Driver peut simuler mouvements, clics, frappe, scroll et drag-and-drop au niveau de la plateforme; son API n’est pas limitée à Slate. citeturn22search11
+
+## Comparatif entre widgets Editor et runtime
+
+| Fonction | Runtime UMG | Runtime Slate | Unreal Editor / plugins |
+|---|---:|---:|---:|
+| Designer visuel | Oui, Widget Blueprint | Non | Oui via Widget Blueprint et Editor Utility Widget |
+| Programmation Blueprint | Native | Indirecte via wrapper UMG | Oui pour Editor Utility Widgets et scripting Editor |
+| Programmation C++ | Oui | Oui, contrôle maximal | Oui, voie principale pour outils complexes |
+| Sérialisation en asset | Widget Blueprint, styles, fonts, animations | Non pour `SWidget` lui-même | Assets Editor, config, layouts, Blueprints |
+| Réflexion `UObject` | Oui | Non | Oui pour couches UMG et APIs Editor réfléchies |
+| Layout panels | Oui | Oui | Oui, plus splitters, docking et layouts de toolkits |
+| Widgets virtualisés | List/Tile/Tree View | List/Tile/Tree View natives | Tree views, asset lists, property trees, graph lists |
+| Fenêtres natives | Pas comme primitive UMG générale | `SWindow` | Oui, modales, non-modales et fenêtres principales |
+| Onglets dockables | Non au runtime standard | Infrastructure disponible | `SDockTab`, TabManager, nomad/document tabs |
+| Menus et toolbars | Menus UMG artisanaux | Oui | ToolMenus, commands et extenders |
+| Details Panels | Non natif | Construction possible manuellement | PropertyEditor, DetailsView et customizations |
+| Graph Editor | Non | Widgets bas niveau possibles | Framework GraphEditor complet |
+| Asset Picker | Non natif | Construction possible | Content Browser et Asset Picker |
+| Modes et toolkits | Non | Non comme produit complet | `UEdMode`, `FModeToolkit`, `FAssetEditorToolkit` |
+| Animations timeline | Oui, Widget Animation | Manuel/active timers/curves | Oui dans Widget Blueprint; Sequencer pour outils plus larges |
+| Data binding classique | Oui | Attributs/delegates | Oui dans UMG; Property Handles pour Details |
+| MVVM | Plugin UMG | Pas directement | Utilisable dans UMG/EUW selon configuration |
+| Input joueur | Complet | Complet | Input desktop, commands, focus, shortcuts |
+| Multijoueur local | Player Screen, Slate users | Contrôle détaillé | Peu pertinent hors outils de test |
+| 3D/world-space UI | Widget Component | Slate via UMG host/rendu custom | Prévisualisation et outils de viewport |
+| Styling | Propriétés et structs | Style sets et structs | `FAppStyle`, thèmes et style sets de plugins |
+| Localisation | `FText`, Dashboard | `FText` | Même pipeline, plus outils de gather et debug |
+| Accessibilité | Métadonnées UMG | Accessible widgets personnalisables | Même arborescence Slate; couverture réelle à tester |
+| Invalidation | Invalidation/Retainer/Global | Native | Cruciale pour la performance de l’Editor |
+| Profilage | Slate Insights, Insights, stats | Idem | Widget Reflector, Slate Insights, Debug Tools |
+| Undo/Redo | Logique applicative à implémenter | Logique applicative à implémenter | Transactions Editor et Property Handles |
+| Packaging Shipping | Oui | Oui | Non pour modules `Editor` |
+| Hot reload/module unload | Limité | Gestion manuelle des références | Cleanup obligatoire des registries et callbacks |
+
+UMG est donc le meilleur point de départ lorsque le contenu doit être manipulé visuellement ou réutilisé par des designers. Slate est préférable pour un contrôle natif inédit, une table complexe, un graphe, une intégration fine au focus/rendu ou une interface d’éditeur devant ressembler aux outils Epic. Editor Utility Widgets occupent le milieu : vitesse de production UMG, accès à l’Editor, mais moins de maîtrise que les frameworks C++ natifs. citeturn21search19turn22search16turn21search5
+
+Une architecture pragmatique pour un plugin de production est souvent hybride :
+
+| Besoin | Choix recommandé |
+|---|---|
+| Outil interne simple, formulaire, batch d’assets | Editor Utility Widget |
+| Panneau d’asset avec propriétés standard | `FAssetEditorToolkit` + DetailsView |
+| Contrôle interactif inhabituel | `SCompoundWidget` ou `SLeafWidget` |
+| Widget devant être placé dans UMG | `UWidget` wrapper + Slate interne |
+| Menu ou toolbar | ToolMenus + Commands |
+| Fenêtre persistante et dockable | Nomad tab + `SDockTab` |
+| Struct complexe dans Details | `IPropertyTypeCustomization` |
+| Classe entière à réorganiser | `IDetailCustomization` |
+| Liste de milliers d’éléments | `SListView`/`UListView`, jamais `ScrollBox` |
+| UI data-driven importante | MVVM ou setters événementiels |
+| Outil graph-based | GraphEditor, schema et factories |
+| Interaction directe dans viewport | Editor mode / Interactive Tools Framework |
+
+## Évolution récente, performance, debugging et limitations
+
+**Chronologie vérifiée**
+
+| Version | Évolutions UI confirmées |
+|---|---|
+| UE 5.2 | Ajout d’`ObservableArray` à Slate, scale réglable du software cursor et amélioration des file dialogs; améliorations du debugging MVVM, nouveaux événements du Game Viewport Subsystem et hook `IBlueprintWidgetCustomizationExtender`; culture de debug `keys` et logging du texte peint; sauvegarde plus immédiate de certains layouts de tabs. citeturn17search1turn6search12turn12search1turn7search17 |
+| UE 5.3 | Viewmodels Blueprint et FieldNotify améliorés, desired focus, évolutions des listes et des modes de binding, extension du panneau Details du Designer; migration d’entrées Editor majeures vers ToolMenus; option de correspondance de DPI des fonts, avec différence de défaut entre nouveaux et anciens projets. citeturn5search0turn6search10turn7search4turn13search17 |
+| UE 5.4 | Le framework UMG Viewmodel est documenté comme Beta; il demeure donc soumis à des évolutions d’API et de workflow. citeturn16search3 |
+| UE 5.5 | Les release notes ajoutent notamment une politique d’overflow « Middle Ellipsis » pour certains textes UMG; le rendu texte continue d’évoluer sans changer l’architecture UMG–Slate fondamentale. citeturn16search2 |
+| UE 5.6 | Version stable publiée le 3 juin 2025. Aucun remplacement architectural public de Slate/UMG n’a été identifié dans les annonces générales; les changements UI sont surtout incrémentaux et doivent être audités dans les release notes détaillées et les headers. citeturn20search10 |
+| UE 5.7 | Version publiée le 12 novembre 2025. Aucun nouveau framework UI de remplacement n’est annoncé dans la synthèse publique; la surface API continue d’évoluer de manière incrémentale. citeturn20search4 |
+| UE 5.8 | Dernière majeure UE5 actuellement prévue; amélioration du Widget Reflector pour les types de classes natives et nouveau support d’attribut Slate pour certaines zones de répulsion. UE5 doit continuer à recevoir des corrections. citeturn22search4turn20search2 |
+
+Les lignes UE 5.6 et UE 5.7 ne signifient pas « aucun changement UI », mais « aucune transition architecturale majeure confirmée dans les synthèses accessibles ». Les correctifs de widgets, focus, plateformes, layout ou Editor UX sont trop nombreux pour être résumés sans diff automatisé des release notes et du code.
+
+**Performance CPU**
+
+Epic recommande en priorité de réduire :
+
+- les `Tick` de widgets;
+- les fonctions de binding par frame;
+- les changements de layout;
+- les arborescences massives créées dès l’ouverture;
+- les widgets cachés mais tout de même construits;
+- RichText changeant fréquemment;
+- les animations Sequencer modifiant taille et structure;
+- les Canvas/Overlay profondément imbriqués;
+- les Retainer Boxes employés sans mesure.
+
+Les sections d’interface lourdes doivent être séparées et, si possible, créées ou chargées à la demande. `Spacer` est moins coûteux qu’un `SizeBox` lorsque seule une dimension vide est nécessaire. Les interactions entre `ScaleBox` et contraintes de taille peuvent provoquer des boucles de layout difficiles à stabiliser. citeturn11view1
+
+**Performance GPU et draw calls**
+
+Le batching est amélioré lorsque les éléments successifs partagent brush/texture, matériau, clip et couche. Il est détérioré par :
+
+- alternance de textures;
+- clips différents;
+- retainer targets;
+- matériaux distincts;
+- changements de layer;
+- overlays et canvas créant des séparations;
+- texte et glyph atlases multiples;
+- effets de post-process ou blur;
+- widgets 3D multipliant les render targets.
+
+Les atlases de sprites peuvent réduire le nombre de changements de texture. Le clipping possède un coût particulier, car des éléments utilisant des espaces de clip incompatibles ne peuvent pas toujours être batchés ensemble. citeturn17search5turn7search1turn5search1
+
+**Invalidation et pooling**
+
+La stratégie recommandée est :
+
+1. éviter les mises à jour inutiles;
+2. utiliser des setters événementiels;
+3. activer l’invalidation adaptée;
+4. marquer volatile uniquement la petite sous-partie réellement animée;
+5. réserver Retainer Box aux cas où son aplatissement ou sa cadence contrôlée apporte un gain mesuré;
+6. virtualiser les grandes collections;
+7. pooler les entrées fréquemment réutilisées.
+
+L’invalidation globale et les Invalidation Boxes imbriquées ne s’additionnent pas naïvement : lorsque la fenêtre est sous invalidation globale, les boxes internes peuvent être désactivées comme racines de cache indépendantes. citeturn11view0
+
+**Widget Reflector**
+
+Widget Reflector permet d’inspecter la hiérarchie Slate, sélectionner visuellement un widget, examiner géométrie, visibilité, source et relations de parenté, puis prendre des snapshots. Les commandes `WidgetReflector` et `WidgetReflector.TakeSnapshot` permettent de l’ouvrir ou d’automatiser une capture. UE 5.8 ajoute des informations sur les types natifs. citeturn22search1turn22search4
+
+**Slate Insights et Unreal Insights**
+
+Slate Insights est un plugin d’analyse intégré à Unreal Insights. Avec une trace Slate, il visualise frames Slate, événements, invalidation, update flags et durée de traitement des widgets. Les flags permettent d’identifier si un widget a subi layout, paint, update, child-order, render-transform ou volatility changes. citeturn11view2
+
+Les outils complémentaires comprennent :
+
+| Outil | Usage |
+|---|---|
+| Widget Reflector | Hiérarchie, picking, géométrie, source et snapshots |
+| Slate Insights | Coûts, invalidations, événements et lifetime |
+| Unreal Insights | CPU, GPU, mémoire, tâches et traces générales |
+| Blueprint Debugger | Flux d’événements, breakpoints et valeurs UMG |
+| MVVM Debugger | Viewmodels, fields et bindings |
+| Automation Driver | Tests fonctionnels par simulation d’input |
+| Console commands | Stats, debug overlays, dumps et snapshots |
+| `Widget.DumpTemplateSizes` | Taille mémoire des templates de classes widget |
+| Slate Test Suite / Widget Gallery | Inspection manuelle de contrôles natifs lorsqu’elle est disponible |
+
+UE 5.0 avait déjà ajouté les événements `SWidget::Paint` à Slate Insights, les Layer IDs au Widget Reflector, la recherche de widget entre les outils et des timings par widget. citeturn22search9
+
+**Limitations structurelles connues**
+
+| Limitation | Impact |
+|---|---|
+| Pas de Designer visuel natif pour Slate | Les interfaces Slate pures se composent en C++ |
+| Documentation dispersée | Aucun index public unique ne couvre UMG, Slate et tous les modules Editor |
+| Bindings classiques coûteux | Polling et appels Blueprint fréquents |
+| ScrollBox non virtualisé | Mauvais choix pour de grandes collections |
+| RichText plus coûteux | Shaping, parsing, decorators et layout |
+| Retainer Box non gratuit | Texture, mémoire et repaint propre |
+| Clipping et layers cassent le batching | Draw calls supplémentaires |
+| Editor Utility Widget moins intégré qu’un toolkit natif | Docking, commandes, lifecycle et contexte parfois plus limités |
+| Modules Editor impossibles en Shipping | Séparation stricte des dépendances nécessaire |
+| Hot reload imparfait pour les registries | Risque de callbacks, styles ou spawners orphelins |
+| Slate n’est pas garbage-collected | Gestion correcte des `TSharedPtr`, delegates et cycles nécessaire |
+| Accessibilité encore expérimentale dans certaines couches | Validation par plateforme obligatoire |
+| TTS Epic limité à l’anglais | Solution externe ou extension nécessaire pour d’autres langues |
+| Animation de layout coûteuse | Invalidations et prépass fréquents |
+| `NativeWidgetHost` n’est pas une palette Slate complète | Wrapper UMG dédié souvent nécessaire |
+| Pas de garantie de stabilité des classes internes | Les plugins doivent dépendre des APIs publiques |
+| Styles Editor non automatiquement adaptatifs | Brushes et couleurs codés en dur peuvent mal réagir aux thèmes |
+| Sérialisation UMG sensible aux renommages | Noms `BindWidget`, héritage et migrations doivent être testés |
+| Cycle UMG non équivalent au cycle Actor | `Construct` peut être invoqué plusieurs fois |
+| Support IME, gamepad et screen reader variable | Tests sur chaque OS et device cible nécessaires |
+
+La prise en charge des lecteurs d’écran est explicitement décrite comme expérimentale, et le plugin TTS fourni reste limité à l’anglais. citeturn17search7turn17search19
+
+**Ressources communautaires de référence**
+
+Le UMG/Slate Compendium de YawLighthouse est le complément communautaire le plus vaste identifié pour les flux d’entrée, focus, split-screen, performance et relations UMG–Slate. Les pages Unreal Community Wiki et Ikrima.dev restent utiles pour des exemples de Details Customization, widgets Slate et anciens extenders, mais leurs exemples doivent être modernisés vers les API ToolMenus et UE 5.8 avant intégration. citeturn21search4turn21search2turn21search10turn21search21
+
+## Analyse des écarts et protocole de vérification
+
+**Niveau de confiance**
+
+| Domaine | Confiance | Motif |
+|---|---:|---|
+| Architecture UMG–Slate | Très élevée | Documentation et API Epic directes |
+| Widgets UMG publics principaux | Élevée | Référence UMG et API, avec quelques pages descriptives anciennes |
+| Layout, input et événements | Élevée | API `SWidget`, guides Slate et docs UMG |
+| Invalidation et performance | Très élevée | Guides Epic UE 5.8 détaillés |
+| Accessibilité | Élevée | Guides et API UE 5.8, mais statut expérimental |
+| ToolMenus, Details et Editor Utility | Élevée | API Editor et guides Epic |
+| Toolkits, modes et GraphEditor | Moyenne à élevée | API fragmentée entre modules |
+| Sérialisation interne | Moyenne | Contrats publics clairs, détails binaires surtout dans le code source |
+| Différences UE 5.6–5.7 | Moyenne | Changements fins insuffisamment indexés publiquement |
+| Inventaire de chaque `SWidget` interne | Faible sans scan source | Surface trop vaste et dépendante des plugins |
+| Parité plateforme accessibility/IME/input | Moyenne | Doit être testée sur les plateformes finales |
+
+**Écarts non confirmés jusqu’au niveau requis**
+
+| Écart | Ce qui manque | Risque |
+|---|---|---|
+| Liste exhaustive de toutes les classes `SWidget` UE 5.8 | Dump automatisé du code source et de chaque plugin | Omission de widgets internes ou expérimentaux |
+| Changements détaillés UI de UE 5.6 et UE 5.7 | Extraction complète des release notes et diff de headers | Migration subtile ignorée |
+| Statut exact de certaines anciennes pages UMG | Comparaison ligne par ligne avec les headers 5.8 | Propriété renommée ou retirée |
+| Couverture screen reader par OS | Matrice testée Windows, macOS, Linux, iOS, Android et consoles | Faux sentiment de conformité |
+| Support IME et composition complexe | Tests japonais/chinois/coréen par widget et plateforme | Problèmes de saisie internationale |
+| Persistance exacte des layouts selon toolkit | Inspection du TabManager et configs de chaque hôte | Layout non restauré comme prévu |
+| Compatibilité hot reload de chaque extension | Test de reload et shutdown des modules | Registries ou delegates orphelins |
+| Formats binaires de Widget Blueprint | Inspection des serializers et versions d’objets | Migration cross-version fragile |
+| Liste de tous les CVars Slate | Dump de console UE 5.8 | Outil de diagnostic manquant |
+| Exposition Blueprint/Python de chaque extension | Scan des specifiers et docs générées | API supposée disponible mais native seulement |
+| Thèmes Editor complets | Audit `FAppStyle`, `FStyleColors` et fichiers de thèmes | Plugin visuellement incohérent |
+| Plugins UI optionnels installés par défaut | Vérification d’une installation Launcher propre | Différence entre source build et binary build |
+
+**Checklist priorisée de fermeture des écarts**
+
+- [ ] **Priorité critique — énumérer les classes.** Compiler UE 5.8 en source et générer trois inventaires : toutes les `UClass` dérivant de `UWidget`, tous les types C++ publics dérivant de `SWidget`, tous les modules/plugins contenant des dossiers `Slate`, `Widgets`, `UMG` ou `Editor`.
+- [ ] **Priorité critique — classifier chaque symbole.** Assigner à chaque classe : module, plugin, runtime/editor, public/private, statut Experimental/Beta/Production, classe de base, version d’apparition et remplacement éventuel.
+- [ ] **Priorité critique — diff versions.** Comparer les headers de UE 5.4, 5.5, 5.6, 5.7 et 5.8 pour `Slate`, `SlateCore`, `UMG`, `UMGEditor`, `ToolMenus`, `PropertyEditor`, `Blutility` et `ScriptableEditorWidgets`.
+- [ ] **Priorité haute — parser les release notes.** Rechercher systématiquement `UMG`, `Slate`, `widget`, `UI`, `focus`, `navigation`, `ToolMenus`, `DetailsView`, `font`, `localization`, `accessibility`, `screen reader`, `invalidation`, `Widget Reflector` et `Slate Insights`.
+- [ ] **Priorité haute — auditer la Palette UMG.** Créer des projets propres UE 5.4 à 5.8, activer successivement les plugins officiels et exporter la Palette, en distinguant Core, Advanced, Input, Lists, Panels, Primitive et plugin widgets.
+- [ ] **Priorité haute — auditer l’Editor.** Ouvrir Slate Test Suite, Widget Reflector et les principaux éditeurs d’assets; relever les classes natives inconnues, leur module et leur statut public.
+- [ ] **Priorité haute — matrice de plateformes.** Tester focus, navigation, IME japonais, RTL, virtual keyboard, touch, gamepad, lecteurs d’écran et DPI sous chaque plateforme cible.
+- [ ] **Priorité moyenne — tests de performance.** Construire des benchmarks reproductibles pour binding, MVVM, invalidation globale, Retainer Box, listes virtualisées, RichText, animation et widgets 3D.
+- [ ] **Priorité moyenne — tests de sérialisation.** Sauvegarder des Widget Blueprints complexes dans chaque version, les ouvrir dans la suivante et vérifier bindings, animations, named slots, inherited widgets et undo/redo.
+- [ ] **Priorité moyenne — tests de lifecycle.** Ouvrir/fermer/recharger les plugins et vérifier l’absence de tab spawners, menus, styles, delegates, property customizations ou commands résiduels.
+- [ ] **Priorité moyenne — audit thèmes.** Tester thèmes clair/sombre et custom, DPI multiples et contrastes, en remplaçant les couleurs codées en dur par `FStyleColors` lorsque possible.
+- [ ] **Priorité basse — exemples communautaires.** Recompiler les exemples YawLighthouse, Unreal Community Wiki et Ikrima.dev en UE 5.8, puis noter toute API obsolète.
+
+**Protocole de relance de la recherche**
+
+```mermaid
+flowchart TD
+    A[Extraire documentation et API] --> B[Scanner les modules et plugins]
+    B --> C[Énumérer UWidget et SWidget]
+    C --> D[Classifier runtime / editor / plugin]
+    D --> E[Comparer UE 5.4 à UE 5.8]
+    E --> F[Lancer tests Editor et plateformes]
+    F --> G{Symbole ou comportement non classifié ?}
+    G -->|Oui| H[Rechercher header, call site, release note et test]
+    H --> D
+    G -->|Non| I{Deux passes sans nouvel écart ?}
+    I -->|Non| B
+    I -->|Oui| J[Geler inventaire, preuves et matrice de versions]
+```
+
+Une relance n’est considérée complète que lorsque :
+
+1. chaque classe publique découverte possède une catégorie et un module;
+2. chaque différence de headers possède une note de version ou un diff source;
+3. chaque comportement plateforme critique possède un résultat de test;
+4. chaque élément non documenté est marqué explicitement « interne/non contractuel »;
+5. deux passes successives du scan ne produisent aucun symbole non classifié;
+6. les inventaires documentation, API, code source, Palette et Widget Reflector convergent.
+
+**Verdict final.** Les fonctions constitutives du système sont couvertes dans ce rapport au niveau architectural et public : widgets, panels, input, events, binding, styles, brushes, fonts, localisation, accessibilité, animation, rendu, performance, Blueprint, C++, Editor Utilities, détails, modes, toolkits, menus, toolbars, tabs, debugging, profiling et sérialisation. Les seuls écarts significatifs ne concernent pas une famille fonctionnelle absente, mais l’impossibilité de confirmer sans scan du dépôt UE 5.8 chaque classe interne, chaque correctif de UE 5.6–5.7 et chaque variation de plateforme. L’étape décisive pour transformer cet inventaire analytique en registre littéralement exhaustif est donc un **dump automatisé du code source, suivi d’une validation dans l’Editor**, et non une nouvelle lecture manuelle des seules pages de documentation.
